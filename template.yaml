@@ -1,0 +1,189 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Pwrcell Adapter AWS Infrastructure.
+
+Parameters:
+  ConcertoRootUrl:
+    Type: String
+    Default: https://concerto-adapters.qa.enbala-engine.com
+  ConcertoQueryTimeoutInSeconds:
+    Type: Number
+    Default: "30"
+  ConcertoApiWorkers:
+    Type: Number
+    Default: "10"
+  ConcertoApiMaxRetryAttempts:
+    Type: Number
+    Default: "3"
+  ConcertoApiMaxRequestsPerPeriod:
+    Type: Number
+    Default: "25"
+  ConcertoTokenRotationSchedule:
+    Type: String
+    Default: "rate(25 minutes)"
+  AssetLifecycleSubscriptionManagerSchedule:
+    Type: String
+    Default: "rate(25 minutes)"
+
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 128
+    Runtime: python3.9
+    Layers:
+      - !Ref ProjectLambdaLayer
+    Environment:
+      Variables:
+        CONCERTO_ROOT_URL: !Ref ConcertoRootUrl
+        CONCERTO_API_WORKERS: !Ref ConcertoApiWorkers
+        CONCERTO_API_MAX_RETRY_ATTEMPTS: !Ref ConcertoApiMaxRetryAttempts
+        CONCERTO_QUERY_TIMEOUT_IN_SECONDS: !Ref ConcertoQueryTimeoutInSeconds
+        CONCERTO_API_REQUESTS_PER_PERIOD: !Ref ConcertoApiMaxRequestsPerPeriod
+
+Resources:
+#######################################################################
+# IAM USERS
+#######################################################################
+  AssetSubscriptionUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: AssetSubscriptionUser  # limited to be <= 32 characters to meet GetFederationToken requirements.
+      Policies:
+        - PolicyName: AssetSubscriptionUserPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource: !GetAtt AssetSubscriptionQueue.Arn
+              - Effect: Allow
+                Action:
+                  - sts:GetFederationToken
+                Resource: '*'
+
+  AssetSubscriptionUserCredentials:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref AssetSubscriptionUser
+
+#######################################################################
+# SECRETS MANAGER
+#######################################################################
+  ConcertoSecrets:
+    Type: "AWS::SecretsManager::Secret"
+    Properties:
+      Name: !Sub '${AWS::StackName}-ConcertoSecrets'
+      Description: Authentication and Authorization secrets to access Concerto API
+      SecretString: '{"username": "REPLACE_ME_WITH_CONCERTO_USERNAME", "password": "REPLACE_ME_WITH_CONCERTO_PASSWORD", "token": "DO_NOT_REPLACE_ME_FIELD_WILL_BE_POPULATED_AUTOMATICALLY"}'
+
+  AssetSubscriptionUserSecrets:
+    Type: "AWS::SecretsManager::Secret"
+    Properties:
+      Name: !Sub '${AWS::StackName}-AssetSubscriptionUserSecrets'
+      Description: Authentication and Authorization secrets to access Concerto API
+      SecretString: !Sub '{"user_name": "${AssetSubscriptionUser}", "access_key": "${AssetSubscriptionUserCredentials}", "secret_access_key": "${AssetSubscriptionUserCredentials.SecretAccessKey}"}'
+
+##############################################################
+# SQS QUEUES
+##############################################################
+  AssetSubscriptionQueue:
+    Type: AWS::SQS::Queue
+
+  AssetSubscriptionQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Id: AssetSubscriptionSendMessagePolicy
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:sts::${AWS::AccountId}:federated-user/${AssetSubscriptionUser}
+            Action:
+              - sqs:SendMessage
+            Resource: !GetAtt AssetSubscriptionQueue.Arn
+      Queues:
+        - !Ref AssetSubscriptionQueue
+
+##############################################################
+# LAMBDAS
+##############################################################
+  ProjectLambdaLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: src
+      CompatibleRuntimes:
+        - python3.9
+    Metadata:
+      BuildMethod: python3.9
+
+  AssetSubscriptionManagerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: GraphQL AssetLifeCycleEvent subscription manager
+      CodeUri: lambdas/asset_subscription_manager
+      Handler: asset_subscription_manager.lambda_handler
+      Environment:
+        Variables:
+          CONCERTO_SECRETS_ARN: !Ref ConcertoSecrets
+          ASSET_SUBSCRIPTION_QUEUE_URL: !GetAtt AssetSubscriptionQueue.QueueUrl
+          ASSET_SUBSCRIPTION_USER_SECRETS_ARN: !Ref AssetSubscriptionUserSecrets
+          CONCERTO_TOKEN_ROTATION_ARN: !GetAtt ConcertoTokenRotationFunction.Arn
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Ref AssetSubscriptionUserSecrets
+        - Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Ref ConcertoSecrets
+      Events:
+        AssetSubscriptionManagerScheduler:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref AssetLifecycleSubscriptionManagerSchedule
+            Description: Asset subscription manager schedule
+            Enabled: True
+
+  # AssetSubscriptionProcessorFunction:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     Description: GraphQL AssetLifeCycleEvent subscription processor
+  #     CodeUri: lambdas/asset_subscription_processor
+  #     Handler: asset_subscription_processor.lambda_handler
+  #     Events:
+  #       AssetSubscriptionQueueTrigger:
+  #         Type: SQS
+  #         Properties:
+  #           Queue: !GetAtt AssetSubscriptionQueue.Arn
+  #           BatchSize: 20
+
+  ConcertoTokenRotationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: !Sub Rotates Concerto access token ${ConcertoTokenRotationSchedule}
+      CodeUri: lambdas/concerto_token_rotation
+      Handler: concerto_token_rotation.lambda_handler
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          CONCERTO_SECRETS_ARN: !Ref ConcertoSecrets
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:PutSecretValue
+                - secretsmanager:GetSecretValue
+                - secretsmanager:UpdateSecretVersionStage
+              Resource: !Ref ConcertoSecrets
+      Events:
+        ConcertoTokenRotationScheduler:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref ConcertoTokenRotationSchedule
+            Description: Concerto token rotation schedule
+            Enabled: True
