@@ -95,30 +95,4 @@ def sqs_subscription_credentials_update_mutation(
     return {"query": query, "variables": variables}
 
 
-def sqs_subscription_credentials_update_mutation(
-    access_key_id: str,
-    secret_access_key: str,
-    security_token: str,
-    subscription_id: str,
-) -> dict:
-    query = """
-    mutation ($input: SqsSubscriptionCredentialsUpdateInput!) {
-        sqsSubscriptionCredentialsUpdate(input: $input) {
-            status
-        }
-    }
-    """
-
-    variables = {
-        "input": {
-            "accessKeyId": access_key_id,
-            "secretAccessKey": secret_access_key,
-            "securityToken": security_token,
-            "subscriptionId": subscription_id,
-        }
-    }
-
-    return {"query": query, "variables": variables}
-
-
 # "variables": {k: v for k, v in variables.items() if v is not None},

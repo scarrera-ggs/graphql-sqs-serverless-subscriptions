@@ -6,10 +6,8 @@ from gql_sqs_subscription.aws.lambda_client import LambdaClient
 from gql_sqs_subscription.aws.secretsmanager import SecretsManager
 from gql_sqs_subscription.concerto.api import ConcertoAPI
 from gql_sqs_subscription.concerto.queries import (
-    all_sqs_subscription_query,
-    asset_lifecycle_subscription,
-    sqs_subscription_credentials_update_mutation,
-)
+    all_sqs_subscription_query, asset_lifecycle_subscription,
+    sqs_subscription_credentials_update_mutation)
 from gql_sqs_subscription.models import ConcertoRequest
 
 

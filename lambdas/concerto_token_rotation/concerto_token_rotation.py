@@ -1,7 +1,6 @@
 import json
 import os
 
-from gql_sqs_subscription.aws.lambda_client import LambdaClient
 from gql_sqs_subscription.aws.secretsmanager import SecretsManager
 from gql_sqs_subscription.concerto.api import ConcertoAPI
 from gql_sqs_subscription.concerto.queries import authenticate_mutation
