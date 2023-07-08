@@ -4,10 +4,14 @@ version = "0.1.0"
 description = "GraphQL subscription through AWS SQS"
 authors = ["Santiago Yepes <scarrera@generacgs.com>"]
 readme = "README.md"
-packages = [{include = "gql_sqs_subscription"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
+boto3 = "^1.27.0"
+requests = "^2.31.0"
+backoff = "^2.2.1"
+ratelimit = "^2.2.1"
+pydantic = "^2.0.2"
 
 
 [tool.poetry.group.dev.dependencies]
