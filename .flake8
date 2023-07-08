@@ -1,0 +1,51 @@
+[flake8]
+max-line-length = 120
+
+max-complexity = 10
+
+ignore =
+    # Too complex
+    C901
+    # Missing docstring in public module
+    D100,
+    # Missing docstring in __init__
+    D107,
+    # One-line docstring should fit on one line with quotes
+    D200,
+    # 1 blank line required between summary line and description
+    D205,
+    # First line should end with a period
+    D400,
+    # First line should be in imperative mood; try rephrasing
+    D401,
+    # whitespace before ':'
+    E203,
+    # Missing whitespace around arithmetic operator
+    E226,
+    # Missing whitespace after ',', ';', or ':'
+    E231,
+    # Expected 2 blank lines, found 0
+    E302,
+    # Line too long (82 > 79 characters)
+    E501,
+    # Comparison to true should be 'if cond is true:' or 'if cond:'
+    E712
+    # Trailing Whitespace
+    W291
+    # line break before binary operator
+    W503,
+
+exclude =
+    __init__.py
+    __pycache__
+    *_pb2.py
+    test_*
+    mock_*
+    .venv
+    .aws-sam
+
+per-file-ignores =
+    lambdas/fleet_builder/**:D101,D102,D103
+    lambdas/pwrcell_metadata_fetcher/**:D101,D102,D103
+    lambdas/registrar/**:D101,D102,D103
+    **/*_test.py: D
