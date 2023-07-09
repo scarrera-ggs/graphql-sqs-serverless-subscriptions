@@ -5,25 +5,18 @@ Description: Pwrcell Adapter AWS Infrastructure.
 Parameters:
   ConcertoRootUrl:
     Type: String
-    Default: https://concerto-adapters.qa.enbala-engine.com
   ConcertoQueryTimeoutInSeconds:
     Type: Number
-    Default: "30"
   ConcertoApiWorkers:
     Type: Number
-    Default: "10"
   ConcertoApiMaxRetryAttempts:
     Type: Number
-    Default: "3"
   ConcertoApiMaxRequestsPerPeriod:
     Type: Number
-    Default: "25"
   ConcertoTokenRotationSchedule:
     Type: String
-    Default: "rate(25 minutes)"
   AssetLifecycleSubscriptionManagerSchedule:
     Type: String
-    Default: "rate(25 minutes)"
 
 Globals:
   Function:
