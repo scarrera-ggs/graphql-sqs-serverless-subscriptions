@@ -22,6 +22,8 @@ From an adapters point of view to create a subscription trough SQS the adapter m
 
 ![Architecture](./docs/images/architecture.svg)
 
+## [Architecture Explained](./docs/images/architecture_explained.svg)
+
 ## [Deployment](./docs/deployment.md)
 
 ## [Configuration](./docs/configuration.md)
