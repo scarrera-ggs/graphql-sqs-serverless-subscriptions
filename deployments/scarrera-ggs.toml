@@ -1,0 +1,16 @@
+# vim: ft=toml
+version = 0.1
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_NAMED_IAM"
+stack_name = "gql-sqs-serverless-subscription"
+s3_prefix = "gql-sqs-serverless-subscription"
+parameter_overrides = """
+    ConcertoRootUrl="https://concerto-adapters.qa.enbala-engine.com"
+    ConcertoQueryTimeoutInSeconds="30"
+    ConcertoApiWorkers="10"
+    ConcertoApiMaxRetryAttempts="3"
+    ConcertoApiMaxRequestsPerPeriod="25"
+    ConcertoTokenRotationSchedule="rate(30 minutes)"
+    AssetLifecycleSubscriptionManagerSchedule="rate(30 minutes)"
+"""
