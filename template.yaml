@@ -82,6 +82,9 @@ Resources:
 ##############################################################
   AssetSubscriptionQueue:
     Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 380  # 60 (triggered lambda timeout) * 6 (docs recommendation) + 10 (MaximumBatchingWindowInSeconds)
+      # For more information -> https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html#events-sqs-eventsource
 
   AssetSubscriptionQueuePolicy:
     Type: AWS::SQS::QueuePolicy
@@ -124,6 +127,8 @@ Resources:
           ASSET_SUBSCRIPTION_USER_SECRETS_ARN: !Ref AssetSubscriptionUserSecrets
           CONCERTO_TOKEN_ROTATION_ARN: !GetAtt ConcertoTokenRotationFunction.Arn
       Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ConcertoTokenRotationFunction
         - Statement:
           - Effect: Allow
             Action:
@@ -142,18 +147,30 @@ Resources:
             Description: Asset subscription manager schedule
             Enabled: True
 
-  # AssetSubscriptionProcessorFunction:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     Description: GraphQL AssetLifeCycleEvent subscription processor
-  #     CodeUri: lambdas/asset_subscription_processor
-  #     Handler: asset_subscription_processor.lambda_handler
-  #     Events:
-  #       AssetSubscriptionQueueTrigger:
-  #         Type: SQS
-  #         Properties:
-  #           Queue: !GetAtt AssetSubscriptionQueue.Arn
-  #           BatchSize: 20
+  AssetSubscriptionProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 60
+      MemorySize: 256
+      Description: GraphQL AssetLifeCycleEvent subscription processor
+      CodeUri: lambdas/asset_subscription_processor
+      Handler: asset_subscription_processor.lambda_handler
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+              Resource: !GetAtt AssetSubscriptionQueue.Arn
+      Events:
+        AssetSubscriptionQueueTrigger:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt AssetSubscriptionQueue.Arn
+            MaximumBatchingWindowInSeconds: 20  # time to gather batches of messages before invoking the lambda
+            BatchSize: 30  # maximum number of messages per batch
+            # For more information -> https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html
 
   ConcertoTokenRotationFunction:
     Type: AWS::Serverless::Function
