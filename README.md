@@ -27,3 +27,5 @@ From an adapters point of view to create a subscription trough SQS the adapter m
 ## [Deployment](./docs/deployment.md)
 
 ## [Configuration](./docs/configuration.md)
+
+Co-authored by @angwoontiong 🏆
