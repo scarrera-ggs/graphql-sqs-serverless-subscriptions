@@ -1,3 +1,4 @@
+import json
 import os
 
 import boto3
@@ -6,8 +7,10 @@ from gql_sqs_subscription.aws.lambda_client import LambdaClient
 from gql_sqs_subscription.aws.secretsmanager import SecretsManager
 from gql_sqs_subscription.concerto.api import ConcertoAPI
 from gql_sqs_subscription.concerto.queries import (
-    all_sqs_subscription_query, asset_lifecycle_subscription,
-    sqs_subscription_credentials_update_mutation)
+    all_sqs_subscription_query,
+    asset_lifecycle_subscription,
+    sqs_subscription_credentials_update_mutation,
+)
 from gql_sqs_subscription.models import ConcertoRequest
 
 
@@ -41,6 +44,7 @@ def lambda_handler(event: dict, context: dict) -> None:
                 fu_access_key,
                 fu_secret_access_key,
                 fu_token,
+                subscription_id,
             ),
             message_attributes={},
         )
@@ -50,6 +54,7 @@ def lambda_handler(event: dict, context: dict) -> None:
 
         if "errors" in response_payload:
             _request_error_handler(response_payload["errors"])
+            return
 
         print("Successfully update subscription federated user credentials")
     else:
@@ -73,39 +78,10 @@ def lambda_handler(event: dict, context: dict) -> None:
 
         if "errors" in response_payload:
             _request_error_handler(response_payload["errors"])
+            return
 
         subscription_id = response_payload["subscriptionId"]
         print(f"Subscription created. {subscription_id=}")
-
-
-def _subscription_exists(
-    subscription_name: str,
-    concerto_api: ConcertoAPI,
-    concerto_root_url: str,
-) -> tuple:
-    # get existing subscription
-    concerto_request = ConcertoRequest(
-        method="POST",
-        url=concerto_root_url + "/3.0/graphql",
-        headers={},
-        data=all_sqs_subscription_query(current_page=1, per_page=10),
-        message_attributes={},
-    )
-
-    response = concerto_api.send_request(concerto_request)
-    response_payload = response.json()
-
-    subscriptions = response_payload["data"]["allSqsSubscriptions"]["data"][
-        "sqsSubscriptions"
-    ]
-
-    for subscription in subscriptions:
-        if subscription_name == subscription["name"]:
-            print("Subscription found in Concerto instance, updating credentials.")
-            return True, subscription["id"]
-
-    print("Subscription wasn't found on Concerto instance, creating a new one.")
-    return False, None
 
 
 def _get_federated_user_credentials(iam_user_secrets_arn: str) -> tuple:
@@ -129,11 +105,47 @@ def _get_federated_user_credentials(iam_user_secrets_arn: str) -> tuple:
     )
     federated_user_credentials = response["Credentials"]
 
+    sts_client.close()
+
     return (
         federated_user_credentials["AccessKeyId"],
         federated_user_credentials["SecretAccessKey"],
         federated_user_credentials["SessionToken"],
     )
+
+
+def _subscription_exists(
+    subscription_name: str,
+    concerto_api: ConcertoAPI,
+    concerto_root_url: str,
+) -> tuple:
+    # get existing subscriptions
+    concerto_request = ConcertoRequest(
+        method="POST",
+        url=concerto_root_url + "/3.0/graphql",
+        headers={},
+        data=all_sqs_subscription_query(current_page=1, per_page=10),
+        message_attributes={},
+    )
+
+    response = concerto_api.send_request(concerto_request)
+    response_payload = response.json()
+
+    if "errors" in response_payload:
+        _request_error_handler(response_payload["errors"])
+        return False, None
+
+    subscriptions = response_payload["data"]["allSqsSubscriptions"]["data"][
+        "sqsSubscriptions"
+    ]
+
+    for subscription in subscriptions:
+        if subscription_name == subscription["name"]:
+            print("Subscription found in Concerto instance, updating credentials.")
+            return True, subscription["id"]
+
+    print("Subscription wasn't found on Concerto instance, creating a new one.")
+    return False, None
 
 
 def _request_error_handler(response_errors: list) -> None:
@@ -143,7 +155,6 @@ def _request_error_handler(response_errors: list) -> None:
 
             LambdaClient().invoke(
                 FunctionName=os.environ["CONCERTO_TOKEN_ROTATION_ARN"],
-                Payload={},
                 InvocationType="Event",
             )
         else:
