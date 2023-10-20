@@ -148,7 +148,7 @@ def _subscription_exists(
     return False, None
 
 
-def _request_error_handler(response_errors: list) -> None:
+def _request_error_handler(response_errors: list[dict]) -> None:
     for error in response_errors:
         if error["message"] == "Unauthorized":
             print("Token expired or was not provided, fetching...")
@@ -158,4 +158,6 @@ def _request_error_handler(response_errors: list) -> None:
                 InvocationType="Event",
             )
         else:
-            print(f"Received error from mutation. {error['path']=} {error['message']=}")
+            path = error.get("path")
+            message = error["message"]
+            print(f"Received error from mutation. {path=} {message=}")
