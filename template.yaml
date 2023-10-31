@@ -170,6 +170,7 @@ Resources:
             Queue: !GetAtt AssetSubscriptionQueue.Arn
             MaximumBatchingWindowInSeconds: 20  # time to gather batches of messages before invoking the lambda
             BatchSize: 30  # maximum number of messages per batch
+            Enabled: True
             # For more information -> https://docs.aws.amazon.com/lambda/latest/dg/with-sqs.html
 
   ConcertoTokenRotationFunction:
